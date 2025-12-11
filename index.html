@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Regression</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            display: block;
+            background-color: white;
+        }
+        input, button {
+            margin: 10px;
+            padding: 10px 15px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+            white-space: pre-line;
+        }
+    </style>
+</head>
+<body>
+    <h1>Linear Regression</h1>
+    <canvas id="graph" width="600" height="400"></canvas>
+    <br>
+    <button id="randomize">Randomize</button>
+    <br>
+    <label for="lineInput">Enter line: y = mx + b</label>
+    <input type="text" id="lineInput" placeholder="e.g., y = 2x + 1">
+    <button id="compare">Compare</button>
+    <br>
+    <div id="result"></div>
+
+    <script>
+        const canvas = document.getElementById('graph');
+        const ctx = canvas.getContext('2d');
+        const randomizeBtn = document.getElementById('randomize');
+        const compareBtn = document.getElementById('compare');
+        const lineInput = document.getElementById('lineInput');
+        const resultDiv = document.getElementById('result');
+
+        let points = [];
+        const numPoints = 20;
+        const margin = 50;
+        const width = canvas.width - 2 * margin;
+        const height = canvas.height - 2 * margin;
+
+        function generatePoints() {
+            points = [];
+            const slope = Math.random() * 4 - 2; // slope between -2 and 2
+            const intercept = Math.random() * 10; // intercept between 0 and 10
+            while (points.length < numPoints) {
+                const x = Math.random() * 10;
+                const noise = (Math.random() - 0.5) * 2;
+                let y = slope * x + intercept + noise;
+                if (y >= 0 && y <= 10) {
+                    points.push({x, y});
+                }
+            }
+        }
+
+        function drawPoints() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw grid
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 10; i++) {
+                // vertical lines
+                const px = margin + (i / 10) * width;
+                ctx.beginPath();
+                ctx.moveTo(px, margin);
+                ctx.lineTo(px, canvas.height - margin);
+                ctx.stroke();
+                // horizontal lines
+                const py = canvas.height - margin - (i / 10) * height;
+                ctx.beginPath();
+                ctx.moveTo(margin, py);
+                ctx.lineTo(canvas.width - margin, py);
+                ctx.stroke();
+            }
+            // Draw axes
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(margin, margin);
+            ctx.lineTo(margin, canvas.height - margin);
+            ctx.lineTo(canvas.width - margin, canvas.height - margin);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            // Labels
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            // X axis numbers
+            for (let i = 0; i <= 10; i++) {
+                const px = margin + (i / 10) * width;
+                ctx.fillText(i.toString(), px - 5, canvas.height - margin + 15);
+            }
+            // Y axis numbers
+            for (let i = 0; i <= 10; i++) {
+                const py = canvas.height - margin - (i / 10) * height;
+                ctx.fillText(i.toString(), margin - 20, py + 5);
+            }
+            // Axis labels
+            ctx.fillText('X', canvas.width - margin + 10, canvas.height - margin + 15);
+            ctx.fillText('Y', margin - 30, margin - 10);
+            // Draw points
+            ctx.fillStyle = 'blue';
+            points.forEach(point => {
+                const px = margin + (point.x / 10) * width;
+                const py = canvas.height - margin - (point.y / 10) * height;
+                ctx.beginPath();
+                ctx.arc(px, py, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function linearRegression(points) {
+            const n = points.length;
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            points.forEach(p => {
+                sumX += p.x;
+                sumY += p.y;
+                sumXY += p.x * p.y;
+                sumXX += p.x * p.x;
+            });
+            const m = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const b = (sumY - m * sumX) / n;
+            return {m, b};
+        }
+
+        function getClippedX(m, b) {
+            let x_min = 0;
+            let x_max = 10;
+            if (m !== 0) {
+                const x_at_0 = -b / m;
+                const x_at_10 = (10 - b) / m;
+                x_min = Math.max(x_min, Math.min(x_at_0, x_at_10));
+                x_max = Math.min(x_max, Math.max(x_at_0, x_at_10));
+            }
+            return {x1: Math.max(0, x_min), x2: Math.min(10, x_max)};
+        }
+
+        function drawLine(m, b, color) {
+            const {x1, x2} = getClippedX(m, b);
+            if (x1 >= x2) return; // don't draw if no visible part
+            const y1 = m * x1 + b;
+            const y2 = m * x2 + b;
+            const px1 = margin + (x1 / 10) * width;
+            const py1 = canvas.height - margin - (y1 / 10) * height;
+            const px2 = margin + (x2 / 10) * width;
+            const py2 = canvas.height - margin - (y2 / 10) * height;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
+            ctx.stroke();
+        }
+
+        randomizeBtn.addEventListener('click', () => {
+            generatePoints();
+            drawPoints();
+            resultDiv.innerHTML = '';
+        });
+
+        compareBtn.addEventListener('click', () => {
+            const input = lineInput.value.trim().toLowerCase().replace(/\s+/g, '');
+            if (!input.startsWith('y=')) {
+                resultDiv.innerHTML = 'Invalid formula. Use format: y = mx + b';
+                return;
+            }
+            const expr = input.slice(2);
+            let m_user, b_user;
+            if (expr.includes('x')) {
+                const parts = expr.split('x');
+                let m_str = parts[0];
+                let b_str = parts[1] || '0';
+                if (m_str === '' || m_str === '+') m_str = '1';
+                if (m_str === '-') m_str = '-1';
+                m_user = parseFloat(m_str);
+                b_user = parseFloat(b_str);
+            } else {
+                m_user = 0;
+                b_user = parseFloat(expr);
+            }
+            if (isNaN(m_user) || isNaN(b_user)) {
+                resultDiv.innerHTML = 'Invalid numbers in formula.';
+                return;
+            }
+            if (points.length === 0) {
+                resultDiv.innerHTML = 'Please randomize points first.';
+                return;
+            }
+            const {m: m_fit, b: b_fit} = linearRegression(points);
+            drawPoints();
+            drawLine(m_fit, b_fit, 'red'); // best fit
+            drawLine(m_user, b_user, 'green'); // user line
+
+            // Calculate accuracy
+            const slopeDiff = Math.abs(m_user - m_fit);
+            const interceptDiff = Math.abs(b_user - b_fit);
+            const maxSlope = Math.max(Math.abs(m_user), Math.abs(m_fit));
+            const maxIntercept = Math.max(Math.abs(b_user), Math.abs(b_fit));
+            const slopeAccuracy = maxSlope ? (1 - slopeDiff / maxSlope) * 100 : 100;
+            const interceptAccuracy = maxIntercept ? (1 - interceptDiff / maxIntercept) * 100 : 100;
+            const accuracy = (slopeAccuracy + interceptAccuracy) / 2;
+            resultDiv.innerHTML = `Best fit: y = ${m_fit.toFixed(2)}x + ${b_fit.toFixed(2)}<br><br>Your line: y = ${m_user}x + ${b_user}<br><br>Accuracy: ${accuracy.toFixed(2)}%`;
+        });
+
+        // Initial draw
+        generatePoints();
+        drawPoints();
+    </script>
+</body>
+</html>
